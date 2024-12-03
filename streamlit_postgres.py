@@ -1,53 +1,52 @@
 import streamlit as st
-import psycopg2
+import requests
+import os
+from dotenv import load_dotenv
 import pandas as pd
 
-def create_connection():
-    """
-    Create a connection to the PostgreSQL database.
-    """
-    try:
-        conn = psycopg2.connect(
-            host="localhost",
-            database="heart_data",
-            user="postgres",
-            password="2410"
-        )
-        return conn
-    except (Exception, psycopg2.Error) as error:
-        st.error(f"Error connecting to PostgreSQL database: {error}")
-        return None
+# Load environment variables
+load_dotenv()
 
 def execute_query(query):
     """
-    Execute the given SQL query and return results as a DataFrame
+    Execute query via FastAPI endpoint
     """
-    conn = create_connection()
-    if conn is None:
-        return None
-    
     try:
-        # Use pandas to read SQL directly
-        df = pd.read_sql_query(query, conn)
+        # Get API URL from environment variable
+        API_URL = os.getenv('POSTGRES_API_URL', 'http://localhost:8000/execute-query/')
+        
+        # Make POST request to API
+        response = requests.post(
+            API_URL, 
+            json={"query": query},
+            headers={
+                "Content-Type": "application/json",
+                "ngrok-skip-browser-warning": "true"  # Optional: helps with ngrok browser warnings
+            }
+        )
+        
+        # Check if request was successful
+        response.raise_for_status()
+        
+        # Parse response
+        result = response.json()
+        
+        # Convert to pandas DataFrame
+        df = pd.DataFrame(result['data'])
+        
         return df
-    except psycopg2.Error as e:
-        st.error(f"Error executing query: {e}")
+    except requests.RequestException as e:
+        st.error(f"API Request Error: {e}")
         return None
-    finally:
-        if conn:
-            conn.close()
+    except Exception as e:
+        st.error(f"Unexpected Error: {e}")
+        return None
 
 def main():
-    # Initialize session state for results if not already exists
-    if 'query_results' not in st.session_state:
-        st.session_state.query_results = None
-
     st.title("PostgreSQL Query Interface")
     
-    # Query input text area
     query = st.text_area("Enter your PostgreSQL Query:", height=150)
     
-    # Execute query button
     if st.button("Execute Query"):
         if query.strip():
             # Validate query to prevent potentially harmful operations
@@ -60,19 +59,9 @@ def main():
             results = execute_query(query)
             
             if results is not None:
-                # Store results in session state
-                st.session_state.query_results = results
-                # Display results
                 st.dataframe(results)
         else:
             st.warning("Please enter a query.")
-    
-    # Clear results button
-    if st.button("Clear Results"):
-        # Set query results to None
-        st.session_state.query_results = None
-        # Rerun the app to refresh the state
-        st.rerun()
 
 if __name__ == "__main__":
     main()
