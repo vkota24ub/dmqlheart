@@ -43,7 +43,7 @@ def execute_query(query):
         return None
 
 def main():
-    st.title("PostgreSQL Query Interface")
+    st.title("Exploring heart disease risk factors and health conditions")
     
     query = st.text_area("Enter your PostgreSQL Query:", height=150)
     
